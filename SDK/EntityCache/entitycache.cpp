@@ -1,6 +1,12 @@
 #include "entitycache.h"
+#include <cstring>
 
 void CEntityCache::Fill() {
+  if (!I::EngineClient || !I::ClientEntityList || !I::EngineClient->IsInGame()) {
+    Clear();
+    return;
+  }
+
   IClientEntity *pLocalEntity =
       I::ClientEntityList->GetClientEntity(I::EngineClient->GetLocalPlayer());
   if (!pLocalEntity)
@@ -38,16 +44,23 @@ void CEntityCache::Fill() {
       case EClientClass::Hunter:
       case EClientClass::Spitter:
       case EClientClass::Charger: {
-        if (pEntity->As<C_TerrorPlayer *>()->IsAlive() ||
-            pEntity->As<C_TerrorPlayer *>()->m_iTeamNum() != 2 ||
-            pEntity->As<C_TerrorPlayer *>()->m_iTeamNum() != 3)
+        C_TerrorPlayer *pPlayer = pEntity->As<C_TerrorPlayer *>();
+        if (!pPlayer)
+          break;
+
+        if (pPlayer->IsAlive() && !pPlayer->IsDormant() &&
+            pPlayer->m_iTeamNum() == TEAM_INFECTED && !pPlayer->m_isGhost())
           m_vecGroups[EGroupType::SPECIAL_INFECTED].push_back(pEntity);
         break;
       }
       case Tank: {
-        if (pEntity->As<C_Tank *>()->IsAlive() &&
-            (pEntity->As<C_Tank *>()->m_iHealth() <=
-             pEntity->As<C_Tank *>()->m_iMaxHealth()))
+        C_Tank *pTank = pEntity->As<C_Tank *>();
+        if (!pTank)
+          break;
+
+        if (pTank->IsAlive() && !pTank->IsDormant() &&
+            pTank->m_iTeamNum() == TEAM_INFECTED &&
+            (pTank->m_iHealth() <= pTank->m_iMaxHealth()))
           m_vecGroups[EGroupType::SPECIAL_INFECTED].push_back(pEntity);
         break;
       }
@@ -102,8 +115,10 @@ void CEntityCache::UpdateFriends() {
 
 void CEntityCache::Clear() {
   m_pLocal = nullptr;
-  // m_pLocalWeapon = nullptr;
-  // m_pObservedTarget = nullptr;
+  m_pLocalWeapon = nullptr;
+  m_pObservedTarget = nullptr;
+
+  memset(Friends, 0, sizeof(Friends));
 
   for (auto &Group : m_vecGroups)
     Group.second.clear();
