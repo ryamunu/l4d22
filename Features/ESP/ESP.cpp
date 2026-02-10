@@ -11,26 +11,20 @@
 #include "../../Util/Math/Math.h"
 #include "../Vars.h"
 #include <algorithm>
+#include <cmath>
 
 // Helper: Get bone position from bone matrix
 inline Vector GetBonePosition(const matrix3x4_t &boneMatrix) {
   return Vector(boneMatrix[0][3], boneMatrix[1][3], boneMatrix[2][3]);
 }
 
-// Helper: Draw skeleton using bone parent hierarchy
-// DISABLED - mstudiobone_t structure offsets are incorrect for L4D2
-// TODO: Research correct L4D2 bone structure and fix skeleton ESP
+// Helper: Draw skeleton using studio parent hierarchy.
 void DrawSkeleton(C_BaseEntity *pEntity, Color color) {
-  // Skeleton ESP temporarily disabled - structure offsets are wrong
-  return;
-
-  // Original code preserved below for future reference
-  /*
   if (!pEntity || !I::ModelInfo || !I::GlobalVars)
     return;
 
   C_BaseAnimating *pAnim = pEntity->As<C_BaseAnimating *>();
-  if (!pAnim)
+  if (!pAnim || pAnim->IsDormant() || !pAnim->IsAlive())
     return;
 
   const model_t *pModel = pEntity->GetModel();
@@ -41,48 +35,60 @@ void DrawSkeleton(C_BaseEntity *pEntity, Color color) {
   if (!pStudioHdr || pStudioHdr->numbones <= 0)
     return;
 
-  // Get bone matrix
-  matrix3x4_t boneMatrix[128];
-  if (!pAnim->SetupBones(boneMatrix, 128, BONE_USED_BY_HITBOX,
-                         I::GlobalVars->curtime))
+  matrix3x4_t boneMatrix[C_BaseAnimating::NUM_STUDIOBONES] = {};
+  if (!pAnim->SetupBones(boneMatrix, C_BaseAnimating::NUM_STUDIOBONES,
+                         BONE_USED_BY_HITBOX, I::GlobalVars->curtime))
     return;
 
-  // Draw bones using parent hierarchy
-  for (int i = 0; i < pStudioHdr->numbones && i < 128; i++) {
+  for (int i = 0;
+       i < pStudioHdr->numbones && i < C_BaseAnimating::NUM_STUDIOBONES; ++i) {
     mstudiobone_t *pBone = pStudioHdr->pBone(i);
-    if (!pBone)
+    if (!pBone || pBone->parent < 0 ||
+        pBone->parent >= C_BaseAnimating::NUM_STUDIOBONES)
       continue;
 
-    int parent = pBone->parent;
-    // Skip bones without parents (root bones)
-    if (parent < 0 || parent >= pStudioHdr->numbones)
+    if (!(pBone->flags & BONE_USED_BY_HITBOX))
       continue;
 
-    // Get bone positions
-    Vector pos1 = GetBonePosition(boneMatrix[i]);
-    Vector pos2 = GetBonePosition(boneMatrix[parent]);
+    Vector child = GetBonePosition(boneMatrix[i]);
+    Vector parent = GetBonePosition(boneMatrix[pBone->parent]);
 
-    // Skip invalid bones (at origin or too far apart)
-    Vector origin(0, 0, 0);
-    if (pos1.DistTo(origin) < 1.0f || pos2.DistTo(origin) < 1.0f)
+    if (!std::isfinite(child.x) || !std::isfinite(child.y) || !std::isfinite(child.z) ||
+        !std::isfinite(parent.x) || !std::isfinite(parent.y) || !std::isfinite(parent.z))
       continue;
 
-    float dist = pos1.DistTo(pos2);
-    // Skip very small bones (fingers ~3-5 units)
-    // Show spine (6-10), arms/legs (10-30 units)
-    if (dist < 6.0f || dist > 35.0f)
-      continue;
-
-    Vector screen1, screen2;
-    if (G::Util.W2S(pos1, screen1) && G::Util.W2S(pos2, screen2)) {
-      G::Draw.Line((int)screen1.x, (int)screen1.y, (int)screen2.x,
-                   (int)screen2.y, color);
+    Vector childScreen, parentScreen;
+    if (G::Util.W2S(child, childScreen) && G::Util.W2S(parent, parentScreen)) {
+      G::Draw.Line((int)childScreen.x, (int)childScreen.y, (int)parentScreen.x,
+                   (int)parentScreen.y, color);
     }
   }
-  */ // End of disabled skeleton code
+}
+
+inline void DrawTankHealth(C_BaseEntity *pEntity, int x, int y, int h) {
+  if (!pEntity || !Vars::ESP::Tank.Healthbar)
+    return;
+
+  int health = pEntity->GetHealth();
+  if (health <= 0)
+    return;
+
+  int maxHealth = pEntity->GetMaxHealth();
+  if (maxHealth <= 0)
+    maxHealth = 6000;
+
+  health = std::clamp(health, 0, maxHealth);
+
+  const int barHeight = std::clamp(h, 10, 260);
+  const int barFill = (int)((float)barHeight * ((float)health / (float)maxHealth));
+  const int barY = y + (barHeight - barFill);
+
+  G::Draw.Rect(x - 6, y - 1, 4, barHeight + 2, Color(0, 0, 0, 230));
+  G::Draw.Rect(x - 5, barY, 2, barFill, Vars::ESP::Tank.MainColor);
 }
 
 // Helper: Get entity box with adjustable height
+
 bool GetEntityBoxWithHeight(C_BaseEntity *pEntity, float entityHeight, int &x,
                             int &y, int &w, int &h) {
   if (!pEntity)
@@ -318,35 +324,30 @@ void CFeatures_ESP::Render() {
         }
 
         if (settings->Healthbar && !isGhost) {
-          int health = pPlayer->GetHealth();
-          int maxHealth = pPlayer->GetMaxHealth();
-          if (maxHealth <= 0)
-            maxHealth = isTank ? 6000 : 100;
-          if (health > maxHealth)
-            health = maxHealth;
+          if (isTank) {
+            DrawTankHealth(pEntity, x, y, h);
+          } else {
+            int health = pPlayer->GetHealth();
+            int maxHealth = pPlayer->GetMaxHealth();
+            if (maxHealth <= 0)
+              maxHealth = 100;
+            if (health > maxHealth)
+              health = maxHealth;
 
-          // Clamp height to reasonable values
-          int clampedH = h;
-          if (clampedH > 200)
-            clampedH = 200;
-          if (clampedH < 10)
-            clampedH = 10;
+            int clampedH = std::clamp(h, 10, 200);
+            int barH =
+                (int)((float)clampedH * ((float)health / (float)maxHealth));
+            barH = std::clamp(barH, 0, clampedH);
+            int barY = y + (clampedH - barH);
 
-          int barH =
-              (int)((float)clampedH * ((float)health / (float)maxHealth));
-          if (barH < 0)
-            barH = 0;
-          if (barH > clampedH)
-            barH = clampedH;
-          int barY = y + (clampedH - barH);
-
-          G::Draw.Rect(x - 5, y, 3, clampedH, Color(0, 0, 0, 200));
-          Color hpColor = Color(0, 255, 0, 255);
-          if (health < maxHealth * 0.5)
-            hpColor = Color(255, 255, 0, 255);
-          if (health < maxHealth * 0.2)
-            hpColor = Color(255, 0, 0, 255);
-          G::Draw.Rect(x - 4, barY, 2, barH, hpColor);
+            G::Draw.Rect(x - 5, y, 3, clampedH, Color(0, 0, 0, 200));
+            Color hpColor = Color(0, 255, 0, 255);
+            if (health < maxHealth * 0.5)
+              hpColor = Color(255, 255, 0, 255);
+            if (health < maxHealth * 0.2)
+              hpColor = Color(255, 0, 0, 255);
+            G::Draw.Rect(x - 4, barY, 2, barH, hpColor);
+          }
         }
 
         if (settings->NumericHP && !isGhost) {
@@ -587,37 +588,7 @@ void CFeatures_ESP::Render() {
         G::Draw.OutlinedRect(x - 1, y - 1, w + 2, h + 2, Color(0, 0, 0, 255));
       }
 
-      // TEMPORARILY DISABLED - Tank health bar causing issues
-      // TODO: Fix health bar size issue and re-enable
-      /*
-      if (Vars::ESP::Tank.Healthbar) {
-        int health = pEntity->GetHealth();
-        int maxHealth = 6000;
-        if (health > maxHealth)
-          health = maxHealth;
-        if (health < 0)
-          health = 0;
-
-        // Clamp h to reasonable values
-        int clampedH = h;
-        if (clampedH > 300)
-          clampedH = 300;
-        if (clampedH < 10)
-          clampedH = 10;
-
-        int barH = (int)((float)clampedH * ((float)health / (float)maxHealth));
-        if (barH < 0)
-          barH = 0;
-        if (barH > clampedH)
-          barH = clampedH;
-        int barY = y + (clampedH - barH);
-
-        // Draw smaller, proportional bar
-        G::Draw.Rect(x - 5, y, 3, clampedH, Color(0, 0, 0, 200)); // Background
-        Color hpColor = Color(150, 0, 255, 255);
-        G::Draw.Rect(x - 4, barY, 2, barH, hpColor);
-      }
-      */
+      DrawTankHealth(pEntity, x, y, h);
 
       if (Vars::ESP::Tank.NumericHP) {
         char hpText[16];
@@ -634,13 +605,9 @@ void CFeatures_ESP::Render() {
                        Color(255, 255, 255, 255), TXT_CENTERX, "Tank");
       }
 
-      // Skeleton - TEMPORARILY DISABLED for Tank to prevent crashes
-      // TODO: Fix skeleton struct offsets and re-enable
-      /*
       if (Vars::ESP::Tank.Skeleton) {
         DrawSkeleton(pEntity, Vars::ESP::Tank.MainColor);
       }
-      */
       continue;
     }
 
