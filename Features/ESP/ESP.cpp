@@ -12,14 +12,26 @@
 #include "../Vars.h"
 #include <algorithm>
 #include <cmath>
+ codex/audit-and-stabilize-l4d2_zeniiware-codebase-162pje
 #include <cstring>
 #include <initializer_list>
+
+ codex/audit-and-stabilize-l4d2_zeniiware-codebase-ixcp2q
+#include <cstring>
+#include <initializer_list>
+
+ main
+ main
 
 // Helper: Get bone position from bone matrix
 inline Vector GetBonePosition(const matrix3x4_t &boneMatrix) {
   return Vector(boneMatrix[0][3], boneMatrix[1][3], boneMatrix[2][3]);
 }
 
+ codex/audit-and-stabilize-l4d2_zeniiware-codebase-162pje
+
+ codex/audit-and-stabilize-l4d2_zeniiware-codebase-ixcp2q
+ main
 // Helper: Draw skeleton using named ValveBiped joints.
 // This avoids relying on parent offsets that can differ across some L4D2 builds.
 namespace {
@@ -51,6 +63,7 @@ void DrawBoneLink(const matrix3x4_t *boneMatrix, int boneA, int boneB,
                   Color color) {
   if (boneA < 0 || boneB < 0)
     return;
+ codex/audit-and-stabilize-l4d2_zeniiware-codebase-162pje
 
   Vector a = GetBonePosition(boneMatrix[boneA]);
   Vector b = GetBonePosition(boneMatrix[boneB]);
@@ -59,6 +72,16 @@ void DrawBoneLink(const matrix3x4_t *boneMatrix, int boneA, int boneB,
       !std::isfinite(b.x) || !std::isfinite(b.y) || !std::isfinite(b.z))
     return;
 
+
+
+  Vector a = GetBonePosition(boneMatrix[boneA]);
+  Vector b = GetBonePosition(boneMatrix[boneB]);
+
+  if (!std::isfinite(a.x) || !std::isfinite(a.y) || !std::isfinite(a.z) ||
+      !std::isfinite(b.x) || !std::isfinite(b.y) || !std::isfinite(b.z))
+    return;
+
+ main
   Vector aScreen, bScreen;
   if (G::Util.W2S(a, aScreen) && G::Util.W2S(b, bScreen)) {
     G::Draw.Line((int)aScreen.x, (int)aScreen.y, (int)bScreen.x,
@@ -67,6 +90,12 @@ void DrawBoneLink(const matrix3x4_t *boneMatrix, int boneA, int boneB,
 }
 } // namespace
 
+ codex/audit-and-stabilize-l4d2_zeniiware-codebase-162pje
+
+
+// Helper: Draw skeleton using studio parent hierarchy.
+ main
+ main
 void DrawSkeleton(C_BaseEntity *pEntity, Color color) {
   if (!pEntity || !I::ModelInfo || !I::GlobalVars)
     return;
@@ -86,6 +115,7 @@ void DrawSkeleton(C_BaseEntity *pEntity, Color color) {
   matrix3x4_t boneMatrix[C_BaseAnimating::NUM_STUDIOBONES] = {};
   if (!pAnim->SetupBones(boneMatrix, C_BaseAnimating::NUM_STUDIOBONES,
                          BONE_USED_BY_HITBOX, I::GlobalVars->curtime))
+ codex/audit-and-stabilize-l4d2_zeniiware-codebase-162pje
     return;
 
   const int pelvis = FindBoneByAnyName(
@@ -164,6 +194,128 @@ inline void DrawTankHealth(C_BaseEntity *pEntity, int x, int y, int h) {
 
   health = std::clamp(health, 0, maxHealth);
 
+
+    return;
+
+ codex/audit-and-stabilize-l4d2_zeniiware-codebase-ixcp2q
+  const int pelvis = FindBoneByAnyName(
+      pStudioHdr, {"ValveBiped.Bip01_Pelvis", "ValveBiped.Bip01_Hips"});
+  const int spine = FindBoneByAnyName(pStudioHdr, {"ValveBiped.Bip01_Spine"});
+  const int spine1 =
+      FindBoneByAnyName(pStudioHdr, {"ValveBiped.Bip01_Spine1"});
+  const int spine2 =
+      FindBoneByAnyName(pStudioHdr, {"ValveBiped.Bip01_Spine2"});
+  const int neck =
+      FindBoneByAnyName(pStudioHdr, {"ValveBiped.Bip01_Neck1", "ValveBiped.Bip01_Neck"});
+  const int head =
+      FindBoneByAnyName(pStudioHdr, {"ValveBiped.Bip01_Head1", "ValveBiped.Bip01_Head"});
+
+  const int lClav = FindBoneByAnyName(pStudioHdr, {"ValveBiped.Bip01_L_Clavicle"});
+  const int lUpperArm =
+      FindBoneByAnyName(pStudioHdr, {"ValveBiped.Bip01_L_UpperArm"});
+  const int lForearm =
+      FindBoneByAnyName(pStudioHdr, {"ValveBiped.Bip01_L_Forearm"});
+  const int lHand = FindBoneByAnyName(pStudioHdr, {"ValveBiped.Bip01_L_Hand"});
+
+  const int rClav = FindBoneByAnyName(pStudioHdr, {"ValveBiped.Bip01_R_Clavicle"});
+  const int rUpperArm =
+      FindBoneByAnyName(pStudioHdr, {"ValveBiped.Bip01_R_UpperArm"});
+  const int rForearm =
+      FindBoneByAnyName(pStudioHdr, {"ValveBiped.Bip01_R_Forearm"});
+  const int rHand = FindBoneByAnyName(pStudioHdr, {"ValveBiped.Bip01_R_Hand"});
+
+  const int lThigh = FindBoneByAnyName(pStudioHdr, {"ValveBiped.Bip01_L_Thigh"});
+  const int lCalf = FindBoneByAnyName(pStudioHdr, {"ValveBiped.Bip01_L_Calf"});
+  const int lFoot = FindBoneByAnyName(pStudioHdr, {"ValveBiped.Bip01_L_Foot"});
+
+  const int rThigh = FindBoneByAnyName(pStudioHdr, {"ValveBiped.Bip01_R_Thigh"});
+  const int rCalf = FindBoneByAnyName(pStudioHdr, {"ValveBiped.Bip01_R_Calf"});
+  const int rFoot = FindBoneByAnyName(pStudioHdr, {"ValveBiped.Bip01_R_Foot"});
+
+  // Torso
+  DrawBoneLink(boneMatrix, pelvis, spine, color);
+  DrawBoneLink(boneMatrix, spine, spine1, color);
+  DrawBoneLink(boneMatrix, spine1, spine2, color);
+  DrawBoneLink(boneMatrix, spine2, neck, color);
+  DrawBoneLink(boneMatrix, neck, head, color);
+
+  // Arms
+  DrawBoneLink(boneMatrix, spine2, lClav, color);
+  DrawBoneLink(boneMatrix, lClav, lUpperArm, color);
+  DrawBoneLink(boneMatrix, lUpperArm, lForearm, color);
+  DrawBoneLink(boneMatrix, lForearm, lHand, color);
+
+  DrawBoneLink(boneMatrix, spine2, rClav, color);
+  DrawBoneLink(boneMatrix, rClav, rUpperArm, color);
+  DrawBoneLink(boneMatrix, rUpperArm, rForearm, color);
+  DrawBoneLink(boneMatrix, rForearm, rHand, color);
+
+  // Legs
+  DrawBoneLink(boneMatrix, pelvis, lThigh, color);
+  DrawBoneLink(boneMatrix, lThigh, lCalf, color);
+  DrawBoneLink(boneMatrix, lCalf, lFoot, color);
+
+  DrawBoneLink(boneMatrix, pelvis, rThigh, color);
+  DrawBoneLink(boneMatrix, rThigh, rCalf, color);
+  DrawBoneLink(boneMatrix, rCalf, rFoot, color);
+}
+
+inline void DrawTankHealth(C_BaseEntity *pEntity, int x, int y, int h) {
+  if (!pEntity || !Vars::ESP::Tank.Healthbar)
+    return;
+
+  int health = pEntity->GetHealth();
+  if (health <= 0)
+    return;
+
+  int maxHealth = pEntity->GetMaxHealth();
+  if (maxHealth <= 0)
+    maxHealth = 6000;
+
+  health = std::clamp(health, 0, maxHealth);
+
+
+  for (int i = 0;
+       i < pStudioHdr->numbones && i < C_BaseAnimating::NUM_STUDIOBONES; ++i) {
+    mstudiobone_t *pBone = pStudioHdr->pBone(i);
+    if (!pBone || pBone->parent < 0 ||
+        pBone->parent >= C_BaseAnimating::NUM_STUDIOBONES)
+      continue;
+
+    if (!(pBone->flags & BONE_USED_BY_HITBOX))
+      continue;
+
+    Vector child = GetBonePosition(boneMatrix[i]);
+    Vector parent = GetBonePosition(boneMatrix[pBone->parent]);
+
+    if (!std::isfinite(child.x) || !std::isfinite(child.y) || !std::isfinite(child.z) ||
+        !std::isfinite(parent.x) || !std::isfinite(parent.y) || !std::isfinite(parent.z))
+      continue;
+
+    Vector childScreen, parentScreen;
+    if (G::Util.W2S(child, childScreen) && G::Util.W2S(parent, parentScreen)) {
+      G::Draw.Line((int)childScreen.x, (int)childScreen.y, (int)parentScreen.x,
+                   (int)parentScreen.y, color);
+    }
+  }
+}
+
+inline void DrawTankHealth(C_BaseEntity *pEntity, int x, int y, int h) {
+  if (!pEntity || !Vars::ESP::Tank.Healthbar)
+    return;
+
+  int health = pEntity->GetHealth();
+  if (health <= 0)
+    return;
+
+  int maxHealth = pEntity->GetMaxHealth();
+  if (maxHealth <= 0)
+    maxHealth = 6000;
+
+  health = std::clamp(health, 0, maxHealth);
+
+ main
+ main
   const int barHeight = std::clamp(h, 10, 260);
   const int barFill = (int)((float)barHeight * ((float)health / (float)maxHealth));
   const int barY = y + (barHeight - barFill);

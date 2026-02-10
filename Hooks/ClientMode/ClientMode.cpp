@@ -86,12 +86,19 @@ void __fastcall ClientMode::OverrideView::Detour(void *ecx, void *edx,
     return;
 
   Vector forward, right, up;
+ codex/audit-and-stabilize-l4d2_zeniiware-codebase-162pje
   U::Math.angleVectors(View->angles, &forward, &right, &up);
 
   Vector eyePosition = pLocal->EyePosition();
   float cameraDistance = Vars::Misc::ThirdPersonDistance;
   if (cameraDistance < 0.0f)
     cameraDistance = 0.0f;
+
+  U::Math.AngleVectors(View->angles, &forward, &right, &up);
+
+  Vector eyePosition = pLocal->EyePosition();
+  float cameraDistance = std::max(0.0f, Vars::Misc::ThirdPersonDistance);
+ main
 
   Vector desiredOrigin = eyePosition;
   desiredOrigin += up * Vars::Misc::CameraVertical;
@@ -109,12 +116,19 @@ void __fastcall ClientMode::OverrideView::Detour(void *ecx, void *edx,
 
   if (trace.fraction < 1.0f) {
     constexpr float kCameraPadding = 8.0f;
+ codex/audit-and-stabilize-l4d2_zeniiware-codebase-162pje
     const float distanceSafe = (cameraDistance > 1.0f) ? cameraDistance : 1.0f;
     float cameraFraction = trace.fraction - (kCameraPadding / distanceSafe);
     if (cameraFraction < 0.0f)
       cameraFraction = 0.0f;
 
     View->origin = eyePosition + (desiredOrigin - eyePosition) * cameraFraction;
+
+    View->origin = eyePosition + (desiredOrigin - eyePosition) *
+                                     std::max(0.0f, trace.fraction -
+                                                        (kCameraPadding /
+                                                         std::max(1.0f, cameraDistance)));
+ main
   } else {
     View->origin = desiredOrigin;
   }
