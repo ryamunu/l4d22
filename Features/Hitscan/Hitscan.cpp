@@ -104,6 +104,24 @@ inline float CalcFov(const Vector &src, const Vector &dst) {
 todo non-infected zombie classes are fucked?? makes it shoot that entity even
 when its dead???? FIXED L0L
 */
+
+
+inline bool IsValidCombatTarget(C_BaseEntity *pEntity) {
+  if (!pEntity || pEntity->IsDormant())
+    return false;
+
+  C_TerrorPlayer *pPlayer = pEntity->As<C_TerrorPlayer *>();
+  if (pPlayer)
+    return pPlayer->IsAlive() && !pPlayer->m_isGhost();
+
+  if (pEntity->GetClientClass() && pEntity->GetClientClass()->m_ClassID == Infected) {
+    C_Infected *pInfected = pEntity->As<C_Infected *>();
+    return pInfected &&
+           pInfected->ValidEntity(pInfected->m_nSequence(), pInfected->m_usSolidFlags());
+  }
+
+  return pEntity->IsAlive();
+}
 bool CanShootWitch(int rage) {
   if (rage == 1)
     return true;
@@ -321,8 +339,12 @@ void chitscan::run(C_TerrorPlayer *pLocal, CUserCmd *pCmd) {
   // static C_BaseEntity *lastTarget = nullptr;
   // static float lastSwitchTime = 0.0f;
 
-  // Safety: Reset lastTarget if invalid or no target found
-  if (!pEntity) {
+  // Safety: Reset target stickiness when cache points to stale entities.
+  if (!IsValidCombatTarget(m_lastTarget))
+    m_lastTarget = nullptr;
+
+  if (!IsValidCombatTarget(pEntity)) {
+    pEntity = nullptr;
     m_lastTarget = nullptr;
   }
 
@@ -339,7 +361,7 @@ void chitscan::run(C_TerrorPlayer *pLocal, CUserCmd *pCmd) {
     m_lastSwitchTime = I::EngineClient->GetLastTimeStamp();
     m_lastTarget = pEntity;
   }
-  if (!pEntity || !pLocal)
+  if (!pEntity || !pLocal || !IsValidCombatTarget(pEntity))
     return;
   if (G::Util.IsInvalid(pLocal, pEntity))
     return;

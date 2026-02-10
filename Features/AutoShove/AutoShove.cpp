@@ -226,23 +226,26 @@ void CAutoShove::run(C_TerrorPlayer *pLocal, CUserCmd *pCmd) {
     return;
 
   auto pEntity = GetBestTarget(pLocal);
-  if (!pEntity)
+  if (!pEntity || pEntity->IsDormant() || !pEntity->IsAlive())
     return;
   if (pLocal->m_iTeamNum() != TEAM_SURVIVOR)
     return; // if we're infected, dont fucking do hitscan aimbot..
   if (pLocal->m_isGhost())
     return;
-  if (!pLocal->GetActiveWeapon())
+  if (!pLocal->GetActiveWeapon() || !pLocal->IsAlive())
     return;
-  if (!PosTwo(pLocal, pEntity, pLocal->EyePosition(),
-              GetBestHitbox(pEntity, pLocal)))
+  Vector bestHitbox = GetBestHitbox(pEntity, pLocal);
+  if (bestHitbox.IsZero())
+    return;
+
+  if (!PosTwo(pLocal, pEntity, pLocal->EyePosition(), bestHitbox))
     return; // Visibility check
 
   Vector m_vOldViewAngle = pCmd->viewangles;
   float m_fOldSideMove = pCmd->sidemove;
   float m_fOldForwardMove = pCmd->forwardmove;
 
-  Vector Angle = GetBestAngle(pEntity, pLocal);
+  Vector Angle = U::Math.CalcAngle(pLocal->EyePosition(), bestHitbox);
 
   if (Angle.IsZero())
     return;
