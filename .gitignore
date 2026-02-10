@@ -1,0 +1,35 @@
+# Visual Studio
+.vs/
+Debug/
+Release/
+x64/
+x86/
+*.user
+*.suo
+*.opensdf
+*.sdf
+*.ipch
+*.ap
+*.tlog
+*.log
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.exe
+*.dll
+!L4D2_Zeniiware.dll
+
+# Build results
+[Bb]in/
+[Oo]bj/
+
+# User-specific files
+*.userosscache
+*.sln.docstates
+
+# Other
+Thumbs.db
+ehthumbs.db
+Desktop.ini
