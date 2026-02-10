@@ -34,10 +34,33 @@ void InputSys::Uninit()
 
 LRESULT __stdcall InputSys::WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-	Get().ProcessMessage(msg, wParam, lParam);
+	const bool handled = Get().ProcessMessage(msg, wParam, lParam);
 
 	if (Menu::Get().IsVisible())
-		return true;
+	{
+		switch (msg)
+		{
+		case WM_MOUSEMOVE:
+		case WM_MOUSEWHEEL:
+		case WM_MOUSEHWHEEL:
+		case WM_LBUTTONDOWN:
+		case WM_LBUTTONUP:
+		case WM_RBUTTONDOWN:
+		case WM_RBUTTONUP:
+		case WM_MBUTTONDOWN:
+		case WM_MBUTTONUP:
+		case WM_XBUTTONDOWN:
+		case WM_XBUTTONUP:
+		case WM_KEYDOWN:
+		case WM_KEYUP:
+		case WM_SYSKEYDOWN:
+		case WM_SYSKEYUP:
+		case WM_CHAR:
+			return handled ? 1L : 0L;
+		default:
+			break;
+		}
+	}
 
 	return CallWindowProcW((WNDPROC)Get().m_ulOldWndProc, hWnd, msg, wParam, lParam);
 }

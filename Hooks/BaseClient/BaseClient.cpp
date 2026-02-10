@@ -1,4 +1,8 @@
 #include "BaseClient.h"
+#include "../../Features/Hitscan/Hitscan.h"
+#include "../../Features/Vars.h"
+#include "../../SDK/L4D2/Interfaces/IConVar.h"
+#include "../../SDK/L4D2/Interfaces/IInput.h"
 #include "../../SDK/EntityCache/entitycache.h"
 #include "../TerrorPlayer/TerrorPlayer.h"
 using namespace Hooks;
@@ -17,10 +21,6 @@ void __fastcall BaseClient::LevelShutdown::Detour(void *ecx, void *edx) {
   gEntityCache.Clear();
   f::hitscan.Reset();
 }
-#include "../../Features/Hitscan/Hitscan.h"
-#include "../../Features/Vars.h"
-#include "../../SDK/L4D2/Interfaces/IConVar.h"
-#include "../../SDK/L4D2/Interfaces/IInput.h"
 #include "../ClientMode/ClientMode.h"
 
 void __fastcall BaseClient::FrameStageNotify::Detour(

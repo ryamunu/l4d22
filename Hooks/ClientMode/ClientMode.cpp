@@ -7,6 +7,7 @@
 #include "../../Features/NoSpread/NoSpread.h"
 #include "../../Features/Sequence Freezing/SequenceFreezing.h"
 #include "../../Features/Vars.h"
+#include <algorithm>
 
 using namespace Hooks;
 
@@ -17,60 +18,41 @@ bool __fastcall ClientMode::ShouldDrawFog::Detour(void *ecx, void *edx) {
 bool __fastcall ClientMode::CreateMove::Detour(void *ecx, void *edx,
                                                float input_sample_frametime,
                                                CUserCmd *cmd) {
-  if (!cmd || !cmd->command_number)
-    return Table.Original<FN>(Index)(ecx, edx, input_sample_frametime, cmd);
+  const bool bResult =
+      Table.Original<FN>(Index)(ecx, edx, input_sample_frametime, cmd);
 
-  if (Table.Original<FN>(Index)(ecx, edx, input_sample_frametime, cmd))
-    I::Prediction->SetLocalViewAngles(cmd->viewangles);
-  DWORD pep;
-  __asm mov pep, ebp;
-  bool *BSendPacket =
-      reinterpret_cast<bool *>(*reinterpret_cast<char **>(pep) - 0x1D);
+  if (!cmd || !cmd->command_number)
+    return bResult;
 
   IClientEntity *pLocalEntity =
       I::ClientEntityList->GetClientEntity(I::EngineClient->GetLocalPlayer());
   if (!pLocalEntity)
-    return false;
+    return bResult;
+
   C_TerrorPlayer *pLocal = pLocalEntity->As<C_TerrorPlayer *>();
+  if (!pLocal || pLocal->deadflag())
+    return bResult;
 
-  if (pLocal && !pLocal->deadflag()) {
-    C_BaseCombatWeapon *pBaseWeapon = pLocal->GetActiveWeapon();
-    if (pBaseWeapon) {
-      C_TerrorWeapon *pWeapon = pBaseWeapon->As<C_TerrorWeapon *>();
-      {
-        // Removed Dangerous Teleport/Crash Code
-        // This was likely causing "Untrusted" bans due to Infinite angles.
-        f::misc->run(pLocal, cmd); // run bhop before prediction for obv reasons
-        F::EnginePrediction.Start(pLocal, cmd);
-        {
-          f::SequenceFreezing.Run(cmd, pLocal);
-          f::hitscan.run(pLocal, cmd);
-          f::autoshove.run(pLocal, cmd);
-          F::NoSpread.Run(pLocal, pWeapon, cmd);
-        }
-        F::EnginePrediction.Finish(pLocal, cmd);
+  C_BaseCombatWeapon *pBaseWeapon = pLocal->GetActiveWeapon();
+  if (!pBaseWeapon)
+    return bResult;
 
-        // CRITICAL: Clamp Angles to prevent Untrusted Bans
-        U::Math.ClampAngles(cmd->viewangles);
+  C_TerrorWeapon *pWeapon = pBaseWeapon->As<C_TerrorWeapon *>();
+  f::misc->run(pLocal, cmd);
 
-        viewangle = cmd->viewangles;
-
-        static int choked = 0;
-        // Disabled FakeLag temporarily due to crash (0x1D offset issue)
-        /*
-        if (Vars::Misc::FakeLag) {
-          if (choked < Vars::Misc::FakeLagFactor) {
-            *BSendPacket = false;
-            choked++;
-          } else {
-            *BSendPacket = true;
-            choked = 0;
-          }
-        }
-        */
-      }
-    }
+  F::EnginePrediction.Start(pLocal, cmd);
+  {
+    f::SequenceFreezing.Run(cmd, pLocal);
+    f::hitscan.run(pLocal, cmd);
+    f::autoshove.run(pLocal, cmd);
+    F::NoSpread.Run(pLocal, pWeapon, cmd);
   }
+  F::EnginePrediction.Finish(pLocal, cmd);
+
+  U::Math.ClampAngles(cmd->viewangles);
+  viewangle = cmd->viewangles;
+  I::Prediction->SetLocalViewAngles(cmd->viewangles);
+
   return false;
 }
 
@@ -91,58 +73,56 @@ void __fastcall ClientMode::OverrideView::Detour(void *ecx, void *edx,
                                                  CViewSetup *View) {
   Table.Original<FN>(Index)(ecx, edx, View);
 
-  if (Vars::Misc::ThirdPerson && I::EngineClient->IsInGame()) {
-    IClientEntity *pLocalEntity =
-        I::ClientEntityList->GetClientEntity(I::EngineClient->GetLocalPlayer());
-    if (!pLocalEntity)
-      return;
+  if (!View || !Vars::Misc::ThirdPerson || !I::EngineClient->IsInGame())
+    return;
 
-    C_TerrorPlayer *pLocal = pLocalEntity->As<C_TerrorPlayer *>();
-    if (!pLocal || !pLocal->IsAlive())
-      return; // Don't override if dead (spectator)
+  IClientEntity *pLocalEntity =
+      I::ClientEntityList->GetClientEntity(I::EngineClient->GetLocalPlayer());
+  if (!pLocalEntity)
+    return;
 
-    // Get appropriate angles safely
-    Vector viewAngles = View->angles; // Use current view angles override
+  C_TerrorPlayer *pLocal = pLocalEntity->As<C_TerrorPlayer *>();
+  if (!pLocal || !pLocal->IsAlive())
+    return;
 
-    // Calculate backward vector
-    // Calculate backward vector
-    Vector forward, right, up;
-    U::Math.angleVectors(viewAngles, &forward, &right, &up);
+  Vector forward, right, up;
+  U::Math.angleVectors(View->angles, &forward, &right, &up);
 
-    // Desired camera position
-    // Offset: Start from eyes
-    Vector vecEyePos = pLocal->EyePosition();
+  Vector eyePosition = pLocal->EyePosition();
+  float cameraDistance = Vars::Misc::ThirdPersonDistance;
+  if (cameraDistance < 0.0f)
+    cameraDistance = 0.0f;
 
-    // Apply offsets from menu
-    Vector camOffset = vecEyePos;
-    camOffset += up * Vars::Misc::CameraVertical;
-    camOffset += right * Vars::Misc::CameraHorizontal;
-    camOffset -= forward * Vars::Misc::ThirdPersonDistance; // Move back
+  Vector desiredOrigin = eyePosition;
+  desiredOrigin += up * Vars::Misc::CameraVertical;
+  desiredOrigin += right * Vars::Misc::CameraHorizontal;
+  desiredOrigin -= forward * cameraDistance;
 
-    // Trace ray to prevent wall clipping
-    Ray_t ray;
-    ray.Init(vecEyePos, camOffset); // Legacy Init takes only start/end
+  Ray_t ray;
+  ray.Init(eyePosition, desiredOrigin);
 
-    CTraceFilter filter;
-    filter.pSkip = pLocalEntity;
+  CTraceFilter filter;
+  filter.pSkip = pLocalEntity;
 
-    trace_t trace;
-    I::EngineTrace->TraceRay(ray, MASK_SOLID, &filter, &trace);
+  trace_t trace;
+  I::EngineTrace->TraceRay(ray, MASK_SOLID, &filter, &trace);
 
-    if (trace.fraction < 1.0f) {
-      // Collision detected, move camera to hit position
-      View->origin = trace.endpos;
-    } else {
-      View->origin = camOffset;
-    }
+  if (trace.fraction < 1.0f) {
+    constexpr float kCameraPadding = 8.0f;
+    const float distanceSafe = (cameraDistance > 1.0f) ? cameraDistance : 1.0f;
+    float cameraFraction = trace.fraction - (kCameraPadding / distanceSafe);
+    if (cameraFraction < 0.0f)
+      cameraFraction = 0.0f;
 
-    // FORCE 0xAD (Critical for Versus Body Rendering)
-    // Ensures state is correct right before rendering
-    if (I::Input) {
-      I::Input->m_fCameraInThirdPerson() = true;
-      I::Input->m_fCameraInThirdPerson_Old() = true;
-      I::Input->m_fCameraInThirdPerson_Alt() = true;
-    }
+    View->origin = eyePosition + (desiredOrigin - eyePosition) * cameraFraction;
+  } else {
+    View->origin = desiredOrigin;
+  }
+
+  if (I::Input) {
+    I::Input->m_fCameraInThirdPerson() = true;
+    I::Input->m_fCameraInThirdPerson_Old() = true;
+    I::Input->m_fCameraInThirdPerson_Alt() = true;
   }
 }
 
