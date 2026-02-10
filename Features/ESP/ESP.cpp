@@ -12,14 +12,18 @@
 #include "../Vars.h"
 #include <algorithm>
 #include <cmath>
+ codex/audit-and-stabilize-l4d2_zeniiware-codebase-ixcp2q
 #include <cstring>
 #include <initializer_list>
+=======
+ main
 
 // Helper: Get bone position from bone matrix
 inline Vector GetBonePosition(const matrix3x4_t &boneMatrix) {
   return Vector(boneMatrix[0][3], boneMatrix[1][3], boneMatrix[2][3]);
 }
 
+ codex/audit-and-stabilize-l4d2_zeniiware-codebase-ixcp2q
 // Helper: Draw skeleton using named ValveBiped joints.
 // This avoids relying on parent offsets that can differ across some L4D2 builds.
 namespace {
@@ -67,6 +71,9 @@ void DrawBoneLink(const matrix3x4_t *boneMatrix, int boneA, int boneB,
 }
 } // namespace
 
+
+// Helper: Draw skeleton using studio parent hierarchy.
+ main
 void DrawSkeleton(C_BaseEntity *pEntity, Color color) {
   if (!pEntity || !I::ModelInfo || !I::GlobalVars)
     return;
@@ -88,6 +95,7 @@ void DrawSkeleton(C_BaseEntity *pEntity, Color color) {
                          BONE_USED_BY_HITBOX, I::GlobalVars->curtime))
     return;
 
+ codex/audit-and-stabilize-l4d2_zeniiware-codebase-ixcp2q
   const int pelvis = FindBoneByAnyName(
       pStudioHdr, {"ValveBiped.Bip01_Pelvis", "ValveBiped.Bip01_Hips"});
   const int spine = FindBoneByAnyName(pStudioHdr, {"ValveBiped.Bip01_Spine"});
@@ -164,6 +172,47 @@ inline void DrawTankHealth(C_BaseEntity *pEntity, int x, int y, int h) {
 
   health = std::clamp(health, 0, maxHealth);
 
+=======
+  for (int i = 0;
+       i < pStudioHdr->numbones && i < C_BaseAnimating::NUM_STUDIOBONES; ++i) {
+    mstudiobone_t *pBone = pStudioHdr->pBone(i);
+    if (!pBone || pBone->parent < 0 ||
+        pBone->parent >= C_BaseAnimating::NUM_STUDIOBONES)
+      continue;
+
+    if (!(pBone->flags & BONE_USED_BY_HITBOX))
+      continue;
+
+    Vector child = GetBonePosition(boneMatrix[i]);
+    Vector parent = GetBonePosition(boneMatrix[pBone->parent]);
+
+    if (!std::isfinite(child.x) || !std::isfinite(child.y) || !std::isfinite(child.z) ||
+        !std::isfinite(parent.x) || !std::isfinite(parent.y) || !std::isfinite(parent.z))
+      continue;
+
+    Vector childScreen, parentScreen;
+    if (G::Util.W2S(child, childScreen) && G::Util.W2S(parent, parentScreen)) {
+      G::Draw.Line((int)childScreen.x, (int)childScreen.y, (int)parentScreen.x,
+                   (int)parentScreen.y, color);
+    }
+  }
+}
+
+inline void DrawTankHealth(C_BaseEntity *pEntity, int x, int y, int h) {
+  if (!pEntity || !Vars::ESP::Tank.Healthbar)
+    return;
+
+  int health = pEntity->GetHealth();
+  if (health <= 0)
+    return;
+
+  int maxHealth = pEntity->GetMaxHealth();
+  if (maxHealth <= 0)
+    maxHealth = 6000;
+
+  health = std::clamp(health, 0, maxHealth);
+
+ main
   const int barHeight = std::clamp(h, 10, 260);
   const int barFill = (int)((float)barHeight * ((float)health / (float)maxHealth));
   const int barY = y + (barHeight - barFill);
